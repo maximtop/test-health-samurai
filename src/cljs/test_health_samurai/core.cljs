@@ -1,13 +1,27 @@
 (ns test-health-samurai.core
   (:require [reagent.core :as r]
-            [reagent.dom :as rd]))
+            [reagent.dom :as rd]
+            [ajax.core :refer [GET POST]]))
 
-(defn patient-form []
+(defn get-patients [patients]
+  (GET "/patients"
+       {:headers {"Accept" "application/transit+json"}
+        :handler #(reset! patients (:patients %))}))
+
+(defn patients-list [patients]
+  (println patients)
+  [:ul.patients
+   (for [{:keys [full_name]} @patients]
+     ^{:key full_name}
+     [:li
+      [:p full_name]])])
+
+(defn patients-form []
   (let [fields (r/atom {})]
     (fn []
       [:div
        [:div.field
-        [:label.label {:for :name} "Full name"]
+        [:label.label {:for :full_name} "Full name"]
         [:input.input
          {:type :text
           :name :full_name
@@ -45,9 +59,16 @@
          :value "Add"}]])))
 
 (defn home []
-  [:div.content>div.columns.is-centered>div.column.is-two-thirds
-   [:div.columns>div.column
-    [patient-form]]])
+  (let [patients (r/atom nil)]
+    (get-patients patients)
+    (fn []
+      [:div.content>div.columns.is-centered>div.column.is-two-thirds
+       [:div.columns>div.column
+        [:h3 "Patients list"]
+        [patients-list patients]]
+       [:div.columns>div.column
+        [patients-form]]])))
+       
 
 (defn mount-components [] 
   (rd/render [home]  (.getElementById js/document "content")))
