@@ -1,10 +1,10 @@
--- :name create-patient! :! :n
+-- :name new-patient! :! :n
 -- :doc creates a new patient record
 INSERT INTO patients
 (full_name, sex, birthday, address, insurance_number)
 VALUES (:full_name, :sex, :birthday, :address, :insurance_number)
 
--- :name update-patient! :! :n
+-- :name edit-patient! :! :n
 -- :doc updates an existing patient record
 UPDATE patients
 SET full_name = :full_name, sex = :sex, birthday = :birthday, address = :address, insurance_number = :insurance_number

@@ -16,6 +16,17 @@
      [:li
       [:p full_name]])])
 
+(defn add-patient! [fields]
+  (println @fields)
+  (POST "/patient"
+        {:format :json
+         :headers
+         {"Accept" "application/transit+json"
+          "x-csrf-token" (. js/window -csrfToken)}
+         :params @fields
+         :handler #(.log js/console (str "response:" %))
+         :error-handler #(.error js/console (str "error:" %))}))
+
 (defn patients-form []
   (let [fields (r/atom {})]
     (fn []
@@ -56,6 +67,7 @@
           :value (:insurance_number @fields)}]]
        [:input.button.is-primary
         {:type :submit
+         :on-click #(add-patient! fields)
          :value "Add"}]])))
 
 (defn home []
