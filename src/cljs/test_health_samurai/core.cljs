@@ -1,7 +1,8 @@
 (ns test-health-samurai.core
   (:require [reagent.core :as r]
             [reagent.dom :as rd]
-            [ajax.core :refer [GET POST]]))
+            [ajax.core :refer [GET POST]]
+            [clojure.string :as string]))
 
 (defn get-patients [patients]
   (GET "/patients"
@@ -16,7 +17,8 @@
      [:li
       [:p full_name]])])
 
-(defn add-patient! [fields]
+
+(defn add-patient! [fields errors]
   (println @fields)
   (POST "/patient"
         {:format :json
@@ -24,15 +26,26 @@
          {"Accept" "application/transit+json"
           "x-csrf-token" (. js/window -csrfToken)}
          :params @fields
-         :handler #(.log js/console (str "response:" %))
-         :error-handler #(.error js/console (str "error:" %))}))
+         :handler #(do
+                     (.log js/console (str "response:" %))
+                     (reset! errors nil))
+         :error-handler #(do
+                           (.log js/console (str %))
+                           (reset! errors (get-in % [:response :errors])))}))
+
+(defn errors-component [errors id]
+  (when-let [error (id @errors)]
+    [:div.notification.is-danger (string/join error)]))
 
 (defn patients-form []
-  (let [fields (r/atom {})]
+  (let [fields (r/atom {})
+        errors (r/atom nil)]
     (fn []
       [:div
+       [errors-component errors :server-error]
        [:div.field
         [:label.label {:for :full_name} "Full name"]
+        [errors-component errors :full_name]
         [:input.input
          {:type :text
           :name :full_name
@@ -40,12 +53,14 @@
           :value (:full_name @fields)}]]
        [:div.field
         [:label.label {:for :sex} "Sex"]
+        [errors-component errors :sex]
         [:input.input
          {:name :sex
           :value (:sex @fields)
           :on-change #(swap! fields assoc :sex (-> % .-target .-value))}]]
        [:div.field
         [:label.label {:for :birthday} "Birthday"]
+        [errors-component errors :birthday]
         [:input.input
          {:type :date
           :name :birthday
@@ -53,6 +68,7 @@
           :value (:birthday @fields)}]]
        [:div.field
         [:label.label {:for :address} "Address"]
+        [errors-component errors :address]
         [:input.input
          {:type :text
           :name :address
@@ -60,6 +76,7 @@
           :value (:address @fields)}]]
        [:div.field
         [:label.label {:for :insurance_number} "Insurance number"]
+        [errors-component errors :insurance_number]
         [:input.input
          {:type :text
           :name :insurance_number
@@ -67,7 +84,7 @@
           :value (:insurance_number @fields)}]]
        [:input.button.is-primary
         {:type :submit
-         :on-click #(add-patient! fields)
+         :on-click #(add-patient! fields errors)
          :value "Add"}]])))
 
 (defn home []
