@@ -47,9 +47,6 @@
         (response/internal-server-error
          {:errors {:server-error ["Failed to save message!"]}})))))
 
-
-;; instant/read-instant-date
-
 (defn home-routes []
   [""
    {:middleware [middleware/wrap-csrf

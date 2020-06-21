@@ -9,14 +9,29 @@
        {:headers {"Accept" "application/transit+json"}
         :handler #(reset! patients (:patients %))}))
 
-(defn patients-list [patients]
-  (println patients)
-  [:ul.patients
-   (for [{:keys [full_name]} @patients]
-     ^{:key full_name}
-     [:li
-      [:p full_name]])])
+(defn log [& args] 
+  (apply (.-log js/console) args))
 
+(defn patients-list [patients]
+  (log patients)
+  [:div
+   [:table.table.is_fullwidth
+    [:thead
+     [:tr
+      [:th "Name"]
+      [:th "Sex"]
+      [:th "Birthday"]
+      [:th "Address"]
+      [:th "Insurance number"]]]
+    [:tbody
+     (for [{:keys [id, full_name, sex, birthday, address, insurance_number]} @patients]
+       [:tr {:key id}
+        [:td full_name]
+        [:td sex]
+        [:td "birthday"]
+        [:td address]
+        [:td insurance_number]])
+     ]]])
 
 (defn add-patient! [fields errors]
   (println @fields)
@@ -87,9 +102,11 @@
          :on-click #(add-patient! fields errors)
          :value "Add"}]])))
 
+(defonce patients (r/atom nil))
+(get-patients patients)
+
 (defn home []
-  (let [patients (r/atom nil)]
-    (get-patients patients)
+  (do
     (fn []
       [:div.content>div.columns.is-centered>div.column.is-two-thirds
        [:div.columns>div.column
@@ -97,7 +114,6 @@
         [patients-list patients]]
        [:div.columns>div.column
         [patients-form]]])))
-       
 
 (defn mount-components [] 
   (rd/render [home]  (.getElementById js/document "content")))
