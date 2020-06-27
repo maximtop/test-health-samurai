@@ -40,18 +40,29 @@
     (response/bad-request {:errors errors})
     (try
       (db/new-patient!
-       (assoc params :birthday (instant/read-instant-date (:birthday params))))
+        (assoc params :birthday (instant/read-instant-date (:birthday params))))
       (response/ok {:status :ok})
       (catch Exception e
         (println e)
         (response/internal-server-error
-         {:errors {:server-error ["Failed to save message!"]}})))))
+          {:errors {:server-error ["Failed to save message!"]}})))))
+
+;; TODO validate params {:id 1}
+(defn delete-patient! [{:keys [params]}]
+  (println params)
+  (try
+    (db/delete-patient! params)
+    (response/ok {:status :ok})
+    (catch Exception e
+      (println e)
+      (response/internal-server-error
+        {:errors {:server-error ["Failed to delete patient!"]}}))))
 
 (defn home-routes []
   [""
    {:middleware [middleware/wrap-csrf
                  middleware/wrap-formats]}
    ["/" {:get home-page}]
-   ["/patients" {:get patients-list}]
+   ["/patients" {:get    patients-list
+                 :delete delete-patient!}]
    ["/patient" {:post new-patient!}]])
-

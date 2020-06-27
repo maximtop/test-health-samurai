@@ -1,7 +1,7 @@
 (ns test-health-samurai.core
   (:require [reagent.core :as r]
             [reagent.dom :as rd]
-            [ajax.core :refer [GET POST]]
+            [ajax.core :refer [GET POST DELETE]]
             [clojure.string :as string]))
 
 (defn get-patients [patients]
@@ -9,9 +9,23 @@
        {:headers {"Accept" "application/transit+json"}
         :handler #(reset! patients (:patients %))}))
 
-(defn log [& args] 
+(defn log [& args]
   (apply (.-log js/console) args))
 
+(defn delete-patient [id]
+  (fn [patients] (DELETE "/patients"
+                         {:format        :json
+                          :headers
+                          {"Accept"       "application/transit+json"
+                           "x-csrf-token" (. js/window -csrfToken)}
+                          :params        {:id id}
+                          :handler       #(do
+                                            (log %)
+                                            (swap! patients (partial remove (fn [patient](= (:id patient) id)))))
+                          :error-handler #(do
+                                            (log %))}))) ;; TODO add toast notification
+
+;; TODO do not display if patients list is empty
 (defn patients-list [patients]
   (log patients)
   [:div
@@ -22,7 +36,8 @@
       [:th "Sex"]
       [:th "Birthday"]
       [:th "Address"]
-      [:th "Insurance number"]]]
+      [:th "Insurance number"]
+      [:th "Actions"]]]
     [:tbody
      (for [{:keys [id, full_name, sex, birthday, address, insurance_number]} @patients]
        [:tr {:key id}
@@ -30,20 +45,22 @@
         [:td sex]
         [:td "birthday"]
         [:td address]
-        [:td insurance_number]])
+        [:td insurance_number]
+        [:td [:button.button {:on-click #((delete-patient id) patients)} "Delete"]]])
      ]]])
 
+;; TODO update patients atom after successful operation
 (defn add-patient! [fields errors]
   (println @fields)
   (POST "/patient"
-        {:format :json
+        {:format        :json
          :headers
-         {"Accept" "application/transit+json"
+         {"Accept"       "application/transit+json"
           "x-csrf-token" (. js/window -csrfToken)}
-         :params @fields
-         :handler #(do
-                     (.log js/console (str "response:" %))
-                     (reset! errors nil))
+         :params        @fields
+         :handler       #(do
+                           (.log js/console (str "response:" %))
+                           (reset! errors nil))
          :error-handler #(do
                            (.log js/console (str %))
                            (reset! errors (get-in % [:response :errors])))}))
@@ -62,61 +79,60 @@
         [:label.label {:for :full_name} "Full name"]
         [errors-component errors :full_name]
         [:input.input
-         {:type :text
-          :name :full_name
+         {:type      :text
+          :name      :full_name
           :on-change #(swap! fields assoc :full_name (-> % .-target .-value))
-          :value (:full_name @fields)}]]
+          :value     (:full_name @fields)}]]
        [:div.field
         [:label.label {:for :sex} "Sex"]
         [errors-component errors :sex]
         [:input.input
-         {:name :sex
-          :value (:sex @fields)
+         {:name      :sex
+          :value     (:sex @fields)
           :on-change #(swap! fields assoc :sex (-> % .-target .-value))}]]
        [:div.field
         [:label.label {:for :birthday} "Birthday"]
         [errors-component errors :birthday]
         [:input.input
-         {:type :date
-          :name :birthday
+         {:type      :date
+          :name      :birthday
           :on-change #(swap! fields assoc :birthday (-> % .-target .-value))
-          :value (:birthday @fields)}]]
+          :value     (:birthday @fields)}]]
        [:div.field
         [:label.label {:for :address} "Address"]
         [errors-component errors :address]
         [:input.input
-         {:type :text
-          :name :address
+         {:type      :text
+          :name      :address
           :on-change #(swap! fields assoc :address (-> % .-target .-value))
-          :value (:address @fields)}]]
+          :value     (:address @fields)}]]
        [:div.field
         [:label.label {:for :insurance_number} "Insurance number"]
         [errors-component errors :insurance_number]
         [:input.input
-         {:type :text
-          :name :insurance_number
+         {:type      :text
+          :name      :insurance_number
           :on-change #(swap! fields assoc :insurance_number (-> % .-target .-value))
-          :value (:insurance_number @fields)}]]
+          :value     (:insurance_number @fields)}]]
        [:input.button.is-primary
-        {:type :submit
+        {:type     :submit
          :on-click #(add-patient! fields errors)
-         :value "Add"}]])))
+         :value    "Add"}]])))
 
 (defonce patients (r/atom nil))
 (get-patients patients)
 
 (defn home []
-  (do
-    (fn []
-      [:div.content>div.columns.is-centered>div.column.is-two-thirds
-       [:div.columns>div.column
-        [:h3 "Patients list"]
-        [patients-list patients]]
-       [:div.columns>div.column
-        [patients-form]]])))
+  (fn []
+    [:div.content>div.columns.is-centered>div.column.is-two-thirds
+     [:div.columns>div.column
+      [:h3 "Patients list"]
+      [patients-list patients]]
+     [:div.columns>div.column
+      [patients-form]]]))
 
-(defn mount-components [] 
-  (rd/render [home]  (.getElementById js/document "content")))
+(defn mount-components []
+(rd/render [home]  (.getElementById js/document "content")))
 
 (defn init! []
-  (mount-components))
+(mount-components))
