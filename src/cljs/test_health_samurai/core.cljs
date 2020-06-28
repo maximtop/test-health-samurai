@@ -70,8 +70,12 @@
     [:div.notification.is-danger (string/join error)]))
 
 (defn patients-form []
-  (let [fields (r/atom {})
-        errors (r/atom nil)]
+  (let [fields         (r/atom {})
+        errors         (r/atom nil)
+        change-handler (fn [field]
+                         (fn [event]
+                           (let [value (-> event .-target .-value)]
+                             (swap! fields assoc field value))))]
     (fn []
       [:div
        [errors-component errors :server-error]
@@ -81,22 +85,32 @@
         [:input.input
          {:type      :text
           :name      :full_name
-          :on-change #(swap! fields assoc :full_name (-> % .-target .-value))
+          :on-change (change-handler :full_name)
           :value     (:full_name @fields)}]]
        [:div.field
-        [:label.label {:for :sex} "Sex"]
+        [:label.label "Sex"]
         [errors-component errors :sex]
-        [:input.input
-         {:name      :sex
-          :value     (:sex @fields)
-          :on-change #(swap! fields assoc :sex (-> % .-target .-value))}]]
+        [:div.control
+         [:label.radio
+          [:input {:type      "radio"
+                   :name      "sex"
+                   :value     "male"
+                   :on-change (change-handler :sex)
+                   :checked   (= (:sex @fields) "male")}] "Male"]
+         [:label.radio
+          [:input {:type      "radio"
+                   :name      "sex"
+                   :value     "female"
+                   :on-change (change-handler :sex)
+                   :checked   (= (:sex @fields) "female")}] "Female"]
+         ]]
        [:div.field
         [:label.label {:for :birthday} "Birthday"]
         [errors-component errors :birthday]
         [:input.input
          {:type      :date
           :name      :birthday
-          :on-change #(swap! fields assoc :birthday (-> % .-target .-value))
+          :on-change (change-handler :birthday)
           :value     (:birthday @fields)}]]
        [:div.field
         [:label.label {:for :address} "Address"]
@@ -104,7 +118,7 @@
         [:input.input
          {:type      :text
           :name      :address
-          :on-change #(swap! fields assoc :address (-> % .-target .-value))
+          :on-change (change-handler :address)
           :value     (:address @fields)}]]
        [:div.field
         [:label.label {:for :insurance_number} "Insurance number"]
@@ -112,7 +126,7 @@
         [:input.input
          {:type      :text
           :name      :insurance_number
-          :on-change #(swap! fields assoc :insurance_number (-> % .-target .-value))
+          :on-change (change-handler :insurance_number)
           :value     (:insurance_number @fields)}]]
        [:input.button.is-primary
         {:type     :submit
