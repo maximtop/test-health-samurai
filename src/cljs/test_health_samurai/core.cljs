@@ -9,6 +9,10 @@
        {:headers {"Accept" "application/transit+json"}
         :handler #(reset! patients (:patients %))}))
 
+(defonce patients (r/atom nil))
+
+(get-patients patients)
+
 (defn log [& args]
   (apply (.-log js/console) args))
 
@@ -21,7 +25,7 @@
                           :params        {:id id}
                           :handler       #(do
                                             (log %)
-                                            (swap! patients (partial remove (fn [patient](= (:id patient) id)))))
+                                            (swap! patients (partial remove (fn [patient] (= (:id patient) id)))))
                           :error-handler #(do
                                             (log %))}))) ;; TODO add toast notification
 
@@ -46,10 +50,11 @@
         [:td "birthday"]
         [:td address]
         [:td insurance_number]
-        [:td [:button.button {:on-click #((delete-patient id) patients)} "Delete"]]])
-     ]]])
+        [:td [:button.button {:on-click #((delete-patient id) patients)} "Delete"]]])]]])
 
 ;; TODO update patients atom after successful operation
+
+
 (defn add-patient! [fields errors]
   (println @fields)
   (POST "/patient"
@@ -102,8 +107,7 @@
                    :name      "sex"
                    :value     "female"
                    :on-change (change-handler :sex)
-                   :checked   (= (:sex @fields) "female")}] "Female"]
-         ]]
+                   :checked   (= (:sex @fields) "female")}] "Female"]]]
        [:div.field
         [:label.label {:for :birthday} "Birthday"]
         [errors-component errors :birthday]
@@ -133,8 +137,20 @@
          :on-click #(add-patient! fields errors)
          :value    "Add"}]])))
 
-(defonce patients (r/atom nil))
-(get-patients patients)
+(defn display-modal [e]
+  (log e))
+
+;; TODO figure out how to use re-frame, in order to easier manage state of open/closed modal
+(defn add-patient-modal []
+  (fn []
+    [:div.modal.is-active
+     [:div.modal-background {:on-click display-modal}]
+     [:div.modal-card
+      [:header.modal-card-head
+       [:p.modal-card-title "Add patient"]]
+      [:section.modal-card-body
+       [patients-form]]]
+     [:button.modal-close.is-large {:aria-label :close :on-click display-modal}]]))
 
 (defn home []
   (fn []
@@ -143,10 +159,11 @@
       [:h3 "Patients list"]
       [patients-list patients]]
      [:div.columns>div.column
-      [patients-form]]]))
+      [add-patient-modal]
+      [:button.button {:on-click display-modal} "Add patient"]]]))
 
 (defn mount-components []
-(rd/render [home]  (.getElementById js/document "content")))
+  (rd/render [home]  (.getElementById js/document "content")))
 
 (defn init! []
-(mount-components))
+  (mount-components))
