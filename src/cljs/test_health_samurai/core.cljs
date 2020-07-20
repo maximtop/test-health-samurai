@@ -109,8 +109,9 @@
         [:td address]
         [:td insurance_number]
         [:td
-         [:button.button {:on-click #(delete-patient id)} "Delete"]
-         [:button.button {:on-click #(edit-patient id)} "Edit"]]])]]])
+         [:div.buttons
+          [:button.button {:on-click #(delete-patient id)} [:span.icon [:i.mi.mi-delete]]]
+          [:button.button {:on-click #(edit-patient id)} [:span.icon [:i.mi.mi-edit]]]]]])]]])
 
 ;; TODO update patients atom after successful operation
 (defn add-patient! [fields errors]
@@ -221,7 +222,7 @@
     (rf/dispatch [:app/initialize])
     (get-patients)
     (fn []
-      [:div.content>div.columns.is-centered>div.column.is-two-thirds
+      [:div.content.mt-5>div.columns.is-centered>div.column.is-two-thirds
        (if @(rf/subscribe [:patients/loading?])
          [:h3 "Loading patients..."]
          [:div.columns>div.column
