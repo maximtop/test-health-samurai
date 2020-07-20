@@ -1,20 +1,53 @@
 (ns test-health-samurai.core
   (:require [reagent.core :as r]
+            [re-frame.core :as rf]
+            [re-frame.db :as rfd]
             [reagent.dom :as rd]
             [ajax.core :refer [GET POST DELETE]]
             [clojure.string :as string]))
 
-(defn get-patients [patients]
+(rf/reg-event-fx
+  :app/initialize
+  (fn [_ _]
+    {:db {:patients/loading? true}}))
+
+(rf/reg-sub
+  :patients/loading?
+  (fn [db _]
+    (:patients/loading? db)))
+
+(rf/reg-event-db
+  :patients/set
+  (fn [db [_ patients]]
+    (-> db
+        (assoc :patients/loading? false
+               :patients/list patients))))
+
+(rf/reg-event-db
+  :patients/add
+  (fn [db [_ patient]]
+    (update db :patients/list conj patient)))
+
+(rf/reg-event-db
+  :patients/delete
+  (fn [db [_ id]]
+    (update db :patients/list (partial remove #(= (:id %) id)))))
+
+(rf/reg-sub
+  :patients/list
+  (fn [db _]
+    (:patients/list db [])))
+
+(defn get-patients []
   (GET "/patients"
        {:headers {"Accept" "application/transit+json"}
-        :handler #(reset! patients (:patients %))}))
-
-(defonce patients (r/atom nil))
-
-(get-patients patients)
+        :handler #(rf/dispatch [:patients/set (:patients %)])}))
 
 (defn log [& args]
   (apply (.-log js/console) args))
+
+
+(log (:patients/list @rfd/app-db))
 
 (defn delete-patient [id]
   (fn [patients] (DELETE "/patients"
@@ -25,7 +58,7 @@
                           :params        {:id id}
                           :handler       #(do
                                             (log %)
-                                            (swap! patients (partial remove (fn [patient] (= (:id patient) id)))))
+                                            (rf/dispatch [:patients/delete id]))
                           :error-handler #(do
                                             (log %))}))) ;; TODO add toast notification
 
@@ -53,8 +86,6 @@
         [:td [:button.button {:on-click #((delete-patient id) patients)} "Delete"]]])]]])
 
 ;; TODO update patients atom after successful operation
-
-
 (defn add-patient! [fields errors]
   (println @fields)
   (POST "/patient"
@@ -64,6 +95,7 @@
           "x-csrf-token" (. js/window -csrfToken)}
          :params        @fields
          :handler       #(do
+                           (rf/dispatch [:patients/add @fields])
                            (.log js/console (str "response:" %))
                            (reset! errors nil))
          :error-handler #(do
@@ -153,17 +185,20 @@
      [:button.modal-close.is-large {:aria-label :close :on-click display-modal}]]))
 
 (defn home []
-  (fn []
-    [:div.content>div.columns.is-centered>div.column.is-two-thirds
-     [:div.columns>div.column
-      [:h3 "Patients list"]
-      [patients-list patients]]
-     [:div.columns>div.column
-      [add-patient-modal]
-      [:button.button {:on-click display-modal} "Add patient"]]]))
+  (let [patients (rf/subscribe [:patients/list])]
+    (rf/dispatch [:app/initialize])
+    (get-patients)
+    (fn []
+      [:div.content>div.columns.is-centered>div.column.is-two-thirds
+       (if @(rf/subscribe [:patients/loading?])
+         [:h3 "Loading patients..."]
+         [:div.columns>div.column
+          [:h3 "Patients list"]
+          [patients-list patients]
+          [:div.columns>div.column
+           [patients-form]]])])))
 
 (defn mount-components []
   (rd/render [home]  (.getElementById js/document "content")))
 
-(defn init! []
-  (mount-components))
+(defn init! [] (mount-components))

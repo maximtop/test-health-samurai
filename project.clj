@@ -35,101 +35,102 @@
                  [org.webjars/webjars-locator "0.40"]
                  [org.webjars/webjars-locator-jboss-vfs "0.1.0"]
                  [reagent "0.10.0"]
+                 [re-frame "0.10.6"]
                  [ring-webjars "0.2.0"]
                  [ring/ring-core "1.8.1"]
                  [ring/ring-defaults "0.3.2"]
                  [selmer "1.12.25"]]
 
   :min-lein-version "2.0.0"
-  
+
   :source-paths ["src/clj" "src/cljs" "src/cljc"]
   :test-paths ["test/clj"]
   :resource-paths ["resources" "target/cljsbuild"]
   :target-path "target/%s/"
   :main ^:skip-aot test-health-samurai.core
 
-  :plugins [[lein-cljsbuild "1.1.7"]] 
+  :plugins [[lein-cljsbuild "1.1.7"]]
   :clean-targets ^{:protect false}
   [:target-path [:cljsbuild :builds :app :compiler :output-dir] [:cljsbuild :builds :app :compiler :output-to]]
   :figwheel
   {:http-server-root "public"
-   :server-logfile "log/figwheel-logfile.log"
-   :nrepl-port 7002
-   :css-dirs ["resources/public/css"]
+   :server-logfile   "log/figwheel-logfile.log"
+   :nrepl-port       7002
+   :css-dirs         ["resources/public/css"]
    :nrepl-middleware [cider.piggieback/wrap-cljs-repl]}
-  
+
 
   :profiles
   {:uberjar {:omit-source true
-             :prep-tasks ["compile" ["cljsbuild" "once" "min"]]
-             :cljsbuild{:builds
-              {:min
-               {:source-paths ["src/cljc" "src/cljs" "env/prod/cljs"]
-                :compiler
-                {:output-dir "target/cljsbuild/public/js"
-                 :output-to "target/cljsbuild/public/js/app.js"
-                 :source-map "target/cljsbuild/public/js/app.js.map"
-                 :optimizations :advanced
-                 :pretty-print false
-                 :infer-externs true
-                 :closure-warnings
-                 {:externs-validation :off :non-standard-jsdoc :off}
-                 :externs ["react/externs/react.js"]}}}}
-             
-             :aot :all
-             :uberjar-name "test-health-samurai.jar"
-             :source-paths ["env/prod/clj" ]
+             :prep-tasks  ["compile" ["cljsbuild" "once" "min"]]
+             :cljsbuild   {:builds
+                           {:min
+                            {:source-paths ["src/cljc" "src/cljs" "env/prod/cljs"]
+                             :compiler
+                             {:output-dir    "target/cljsbuild/public/js"
+                              :output-to     "target/cljsbuild/public/js/app.js"
+                              :source-map    "target/cljsbuild/public/js/app.js.map"
+                              :optimizations :advanced
+                              :pretty-print  false
+                              :infer-externs true
+                              :closure-warnings
+                              {:externs-validation :off :non-standard-jsdoc :off}
+                              :externs       ["react/externs/react.js"]}}}}
+
+             :aot            :all
+             :uberjar-name   "test-health-samurai.jar"
+             :source-paths   ["env/prod/clj" ]
              :resource-paths ["env/prod/resources"]}
 
-   :dev           [:project/dev :profiles/dev]
-   :test          [:project/dev :project/test :profiles/test]
+   :dev  [:project/dev :profiles/dev]
+   :test [:project/dev :project/test :profiles/test]
 
-   :project/dev  {:jvm-opts ["-Dconf=dev-config.edn" ]
-                  :dependencies [[binaryage/devtools "1.0.0"]
-                                 [cider/piggieback "0.5.0"]
-                                 [doo "0.1.11"]
-                                 [figwheel-sidecar "0.5.20"]
-                                 [pjstadig/humane-test-output "0.10.0"]
-                                 [prone "2020-01-17"]
-                                 [ring/ring-devel "1.8.1"]
-                                 [ring/ring-mock "0.4.0"]]
-                  :plugins      [[com.jakemccrary/lein-test-refresh "0.24.1"]
-                                 [jonase/eastwood "0.3.5"]
-                                 [lein-doo "0.1.11"]
-                                 [lein-figwheel "0.5.20"]] 
-                  :cljsbuild{:builds
-                   {:app
-                    {:source-paths ["src/cljs" "src/cljc" "env/dev/cljs"]
-                     :figwheel {:on-jsload "test-health-samurai.core/mount-components"}
-                     :compiler
-                     {:main "test-health-samurai.app"
-                      :asset-path "/js/out"
-                      :output-to "target/cljsbuild/public/js/app.js"
-                      :output-dir "target/cljsbuild/public/js/out"
-                      :source-map true
-                      :optimizations :none
-                      :pretty-print true}}}}
-                  
-                  
-                  :doo {:build "test"}
-                  :source-paths ["env/dev/clj" ]
-                  :resource-paths ["env/dev/resources"]
-                  :repl-options {:init-ns user
-                                 :timeout 120000}
-                  :injections [(require 'pjstadig.humane-test-output)
-                               (pjstadig.humane-test-output/activate!)]}
-   :project/test {:jvm-opts ["-Dconf=test-config.edn" ]
-                  :resource-paths ["env/test/resources"] 
-                  :cljsbuild 
+   :project/dev {:jvm-opts     ["-Dconf=dev-config.edn" ]
+                 :dependencies [[binaryage/devtools "1.0.0"]
+                                [cider/piggieback "0.5.0"]
+                                [doo "0.1.11"]
+                                [figwheel-sidecar "0.5.20"]
+                                [pjstadig/humane-test-output "0.10.0"]
+                                [prone "2020-01-17"]
+                                [ring/ring-devel "1.8.1"]
+                                [ring/ring-mock "0.4.0"]]
+                 :plugins      [[com.jakemccrary/lein-test-refresh "0.24.1"]
+                                [jonase/eastwood "0.3.5"]
+                                [lein-doo "0.1.11"]
+                                [lein-figwheel "0.5.20"]]
+                 :cljsbuild    {:builds
+                                {:app
+                                 {:source-paths ["src/cljs" "src/cljc" "env/dev/cljs"]
+                                  :figwheel     {:on-jsload "test-health-samurai.core/mount-components"}
+                                  :compiler
+                                  {:main          "test-health-samurai.app"
+                                   :asset-path    "/js/out"
+                                   :output-to     "target/cljsbuild/public/js/app.js"
+                                   :output-dir    "target/cljsbuild/public/js/out"
+                                   :source-map    true
+                                   :optimizations :none
+                                   :pretty-print  true}}}}
+
+
+                 :doo            {:build "test"}
+                 :source-paths   ["env/dev/clj" ]
+                 :resource-paths ["env/dev/resources"]
+                 :repl-options   {:init-ns user
+                                  :timeout 120000}
+                 :injections     [(require 'pjstadig.humane-test-output)
+                                  (pjstadig.humane-test-output/activate!)]}
+   :project/test {:jvm-opts       ["-Dconf=test-config.edn" ]
+                  :resource-paths ["env/test/resources"]
+                  :cljsbuild
                   {:builds
                    {:test
                     {:source-paths ["src/cljc" "src/cljs" "test/cljs"]
                      :compiler
-                     {:output-to "target/test.js"
-                      :main "test-health-samurai.doo-runner"
+                     {:output-to     "target/test.js"
+                      :main          "test-health-samurai.doo-runner"
                       :optimizations :whitespace
-                      :pretty-print true}}}}
-                  
+                      :pretty-print  true}}}}
+
                   }
-   :profiles/dev {}
+   :profiles/dev  {}
    :profiles/test {}})
