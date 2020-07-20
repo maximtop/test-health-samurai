@@ -6,6 +6,10 @@
             [ajax.core :refer [GET POST DELETE]]
             [clojure.string :as string]))
 
+;; Helpers
+(defn classnames [& args]
+  (string/join " " (map name (filter identity args))))
+
 (rf/reg-event-fx
   :app/initialize
   (fn [_ _]
@@ -38,29 +42,50 @@
   (fn [db _]
     (:patients/list db [])))
 
+(rf/reg-sub
+  :modal/visible?
+  (fn [db _]
+    (:modal/visible? db)))
+
+(defn log [& args]
+  (apply (.-log js/console) args))
+
+(rf/reg-event-db
+  :modal/close
+  (fn [db [_ _]]
+    (do
+      (log db)
+      (assoc db :modal/visible? false))))
+
+(rf/reg-event-db
+  :modal/open
+  (fn [db [_ _]]
+    (do
+      (log db)
+      (assoc db :modal/visible? true))))
+
 (defn get-patients []
   (GET "/patients"
        {:headers {"Accept" "application/transit+json"}
         :handler #(rf/dispatch [:patients/set (:patients %)])}))
 
-(defn log [& args]
-  (apply (.-log js/console) args))
-
-
 (log (:patients/list @rfd/app-db))
 
 (defn delete-patient [id]
-  (fn [patients] (DELETE "/patients"
-                         {:format        :json
-                          :headers
-                          {"Accept"       "application/transit+json"
-                           "x-csrf-token" (. js/window -csrfToken)}
-                          :params        {:id id}
-                          :handler       #(do
-                                            (log %)
-                                            (rf/dispatch [:patients/delete id]))
-                          :error-handler #(do
-                                            (log %))}))) ;; TODO add toast notification
+  (DELETE "/patients"
+          {:format        :json
+           :headers
+           {"Accept"       "application/transit+json"
+            "x-csrf-token" (. js/window -csrfToken)}
+           :params        {:id id}
+           :handler       #(do
+                             (log %)
+                             (rf/dispatch [:patients/delete id]))
+           :error-handler #(do
+                             (log %))})) ;; TODO add toast notification
+
+(defn edit-patient [id]
+  (rf/dispatch [:modal/open]))
 
 ;; TODO do not display if patients list is empty
 (defn patients-list [patients]
@@ -83,7 +108,9 @@
         [:td "birthday"]
         [:td address]
         [:td insurance_number]
-        [:td [:button.button {:on-click #((delete-patient id) patients)} "Delete"]]])]]])
+        [:td
+         [:button.button {:on-click #(delete-patient id)} "Delete"]
+         [:button.button {:on-click #(edit-patient id)} "Edit"]]])]]])
 
 ;; TODO update patients atom after successful operation
 (defn add-patient! [fields errors]
@@ -172,17 +199,22 @@
 (defn display-modal [e]
   (log e))
 
+(defn open-modal []
+  (rf/dispatch [:modal/open]))
+
 ;; TODO figure out how to use re-frame, in order to easier manage state of open/closed modal
-(defn add-patient-modal []
-  (fn []
-    [:div.modal.is-active
-     [:div.modal-background {:on-click display-modal}]
-     [:div.modal-card
-      [:header.modal-card-head
-       [:p.modal-card-title "Add patient"]]
-      [:section.modal-card-body
-       [patients-form]]]
-     [:button.modal-close.is-large {:aria-label :close :on-click display-modal}]]))
+(defn patient-modal []
+  (let [visible?    (rf/subscribe [:modal/visible?])
+        close-modal (fn [] (rf/dispatch [:modal/close]))]
+    (fn []
+      [:div.modal {:class (classnames (when @visible? "is-active"))}
+       [:div.modal-background {:on-click close-modal}]
+       [:div.modal-card
+        [:header.modal-card-head
+         [:p.modal-card-title "Add patient"]]
+        [:section.modal-card-body
+         [patients-form]]]
+       [:button.modal-close.is-large {:aria-label :close :on-click close-modal}]])))
 
 (defn home []
   (let [patients (rf/subscribe [:patients/list])]
@@ -195,8 +227,8 @@
          [:div.columns>div.column
           [:h3 "Patients list"]
           [patients-list patients]
-          [:div.columns>div.column
-           [patients-form]]])])))
+          [:div.buttons [:button.button.is-primary {:on-click open-modal}  "Add patient"]]
+          [patient-modal]])])))
 
 (defn mount-components []
   (rd/render [home]  (.getElementById js/document "content")))
