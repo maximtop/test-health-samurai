@@ -58,11 +58,24 @@
       (response/internal-server-error
         {:errors {:server-error ["Failed to delete patient!"]}}))))
 
+(defn update-patient! [{:keys [params path-params]}]
+  (println params path-params)
+  (try
+    (db/edit-patient! (assoc params :birthday (instant/read-instant-date (:birthday params))))
+    (response/ok {:status :ok})
+    (catch Exception e
+      (println e)
+      (response/internal-server-error
+        {:errors {:server-error ["Failed to update patient!"]}}))))
+
 (defn home-routes []
   [""
-   {:middleware [middleware/wrap-csrf
+   {:middleware [
+                 middleware/wrap-csrf
                  middleware/wrap-formats]}
    ["/" {:get home-page}]
    ["/patients" {:get    patients-list
                  :delete delete-patient!}]
-   ["/patient" {:post new-patient!}]])
+   ["/patient" {:post new-patient!}]
+   ["/patients/:id" {:patch update-patient!
+                     :put   update-patient!}]])

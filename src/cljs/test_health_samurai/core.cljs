@@ -3,7 +3,7 @@
             [re-frame.core :as rf]
             [re-frame.db :as rfd]
             [reagent.dom :as rd]
-            [ajax.core :refer [GET POST DELETE]]
+            [ajax.core :refer [GET POST DELETE PATCH]]
             [clojure.string :as string]))
 
 ;; Helpers
@@ -41,6 +41,13 @@
   (fn [db [_ id]]
     (update db :patients/list (partial remove #(= (:id %) id)))))
 
+(rf/reg-event-db
+  :patients/update
+  (fn [db [_ patient]]
+    (log patient)
+    ;; (update db :patients/list conj patient)
+    ))
+
 (rf/reg-sub
   :patients/list
   (fn [db _]
@@ -49,17 +56,17 @@
 (rf/reg-sub
   :modal/visible?
   (fn [db _]
-    (get-in db [:modal/visible?] false)))
+    (get-in db [:modal :visible?] true)))
 
 (rf/reg-event-db
   :modal/close
   (fn [db [_ _]]
-    (assoc db :modal/visible? false)))
+    (assoc-in db [:modal :visible?] false)))
 
 (rf/reg-event-db
   :modal/open
-  (fn [db [_ _]]
-    (assoc db :modal/visible? true)))
+  (fn [db [_ type]]
+    (update-in db [:modal] assoc :visible? true :type type)))
 
 (rf/reg-sub
   :form/fields
@@ -75,6 +82,17 @@
   :form/clear
   (fn [db [_ _]]
     (assoc db :form/fields {})))
+
+(rf/reg-event-db
+  :form/fill
+  (fn [db [_ patient]]
+    (assoc db :form/fields patient)))
+
+(rf/reg-sub
+  :modal/type
+  (fn [db _]
+    (log db)
+    (get-in db [:modal :type] :add-new)))
 
 (defn get-patients []
   (GET "/patients"
@@ -96,8 +114,11 @@
            :error-handler #(do
                              (log %))})) ;; TODO add toast notification
 
-(defn edit-patient [id]
-  (rf/dispatch [:modal/open]))
+(defn open-edit-modal [id]
+  (let [patients @(rf/subscribe [:patients/list])
+        patient  (first (filter #(= (:id %) id) patients))]
+    (rf/dispatch [:form/fill patient])
+    (rf/dispatch [:modal/open :edit])))
 
 ;; TODO do not display if patients list is empty
 (defn patients-list [patients]
@@ -123,7 +144,7 @@
         [:td
          [:div.buttons
           [:button.button {:on-click #(delete-patient id)} [:span.icon [:i.mi.mi-delete]]] ;;TODO add confirmation before delete
-          [:button.button {:on-click #(edit-patient id)} [:span.icon [:i.mi.mi-edit]]]]]])]]])
+          [:button.button {:on-click #(open-edit-modal id)} [:span.icon [:i.mi.mi-edit]]]]]])]]])
 
 (defn add-patient! [fields errors]
   (POST "/patient"
@@ -142,11 +163,27 @@
                            (.log js/console (str %))
                            (reset! errors (get-in % [:response :errors])))}))
 
+(defn edit-patient! [fields errors]
+  (PATCH (string/join "/" ["/patients" (:id @fields)])
+         {:format        :json
+          :headers       {"Accept"       "application/transit+json"
+                          "x-csrf-token" (. js/window -csrfToken)}
+          :params        @fields
+          :handler       #(do
+                            (rf/dispatch [:patients/update @fields])
+                            (rf/dispatch [:form/clear])
+                            (rf/dispatch [:modal/close])
+                            (.log js/console (str "response: " %))
+                            (reset! errors nil))
+          :error-handler #(do
+                            (.log js/console (str %))
+                            (reset! errors (get-in % [:response :errors])))}))
+
 (defn errors-component [errors id]
   (when-let [error (id @errors)]
     [:div.notification.is-danger (string/join error)]))
 
-(defn patients-form []
+(defn patients-form [submit-handler]
   (let [fields         (rf/subscribe [:form/fields])
         errors         (r/atom nil)
         change-handler (fn [field]
@@ -154,7 +191,8 @@
                            (let [value (-> event .-target .-value)]
                              (rf/dispatch [:form/change field value]))))]
     (fn []
-      [:div
+      [:form {:on-submit (fn [e] (.preventDefault e)
+                           (submit-handler fields errors))}
        [errors-component errors :server-error]
        [:div.field
         [:label.label {:for :full_name} "Full name"]
@@ -169,17 +207,17 @@
         [errors-component errors :sex]
         [:div.control
          [:label.radio
-          [:input {:type      "radio"
-                   :name      "sex"
-                   :value     "male"
-                   :on-change (change-handler :sex)
-                   :checked   (= (:sex @fields) "male")}] "Male"]
+          [:input.mr-1 {:type      "radio"
+                        :name      "sex"
+                        :value     "male"
+                        :on-change (change-handler :sex)
+                        :checked   (= (:sex @fields) "male")}] "Male"]
          [:label.radio
-          [:input {:type      "radio"
-                   :name      "sex"
-                   :value     "female"
-                   :on-change (change-handler :sex)
-                   :checked   (= (:sex @fields) "female")}] "Female"]]]
+          [:input.mr-1 {:type      "radio"
+                        :name      "sex"
+                        :value     "female"
+                        :on-change (change-handler :sex)
+                        :checked   (= (:sex @fields) "female")}] "Female"]]]
        [:div.field
         [:label.label {:for :birthday} "Birthday"]
         [errors-component errors :birthday]
@@ -204,26 +242,32 @@
           :name      :insurance_number
           :on-change (change-handler :insurance_number)
           :value     (:insurance_number @fields)}]]
-       [:input.button.is-primary
-        {:type     :submit
-         :on-click #(add-patient! fields errors)
-         :value    "Add"}]])))
+       [:div.buttons
+        [:input.button.is-primary
+         {:type  :submit
+          :value "Add"}]
+        [:button.button.is-danger {:on-click (fn [e] (.preventDefault e) (rf/dispatch [:modal/close]))} "Cancel"]]])))
 
 (defn open-modal []
   (rf/dispatch [:modal/open]))
 
 (defn patient-modal []
-  (let [visible?    (rf/subscribe [:modal/visible?])
-        close-modal (fn [] (rf/dispatch [:modal/close]))]
+  (let [visible?       (rf/subscribe [:modal/visible?])
+        close-handler  (fn [] (rf/dispatch [:modal/close]))
+        type           (rf/subscribe [:modal/type])
+        submit-handler (fn [fields errors] (if (= @type :edit)
+                                             (edit-patient! fields errors)
+                                             (add-patient! fields errors)))]
     (fn []
-      [:div.modal {:class (classnames (when @visible? "is-active"))}
-       [:div.modal-background {:on-click close-modal}]
-       [:div.modal-card
-        [:header.modal-card-head
-         [:p.modal-card-title "Add patient"]]
-        [:section.modal-card-body
-         [patients-form]]]
-       [:button.modal-close.is-large {:aria-label :close :on-click close-modal}]])))
+      (let [title (if (= @type :edit) "Edit patient" "Add patient")]
+        [:div.modal {:class (classnames (when @visible? "is-active"))}
+         [:div.modal-background {:on-click close-handler}]
+         [:div.modal-card
+          [:header.modal-card-head
+           [:p.modal-card-title title]]
+          [:section.modal-card-body
+           [patients-form submit-handler]]]
+         [:button.modal-close.is-large {:aria-label :close :on-click close-handler}]]))))
 
 (defn home []
   (let [patients (rf/subscribe [:patients/list])]
