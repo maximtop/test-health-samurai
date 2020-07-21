@@ -10,6 +10,10 @@
 (defn classnames [& args]
   (string/join " " (map name (filter identity args))))
 
+(defn log [& args]
+  (apply (.-log js/console) args))
+
+;; state helpers
 (rf/reg-event-fx
   :app/initialize
   (fn [_ _]
@@ -45,24 +49,32 @@
 (rf/reg-sub
   :modal/visible?
   (fn [db _]
-    (:modal/visible? db)))
-
-(defn log [& args]
-  (apply (.-log js/console) args))
+    (get-in db [:modal/visible?] false)))
 
 (rf/reg-event-db
   :modal/close
   (fn [db [_ _]]
-    (do
-      (log db)
-      (assoc db :modal/visible? false))))
+    (assoc db :modal/visible? false)))
 
 (rf/reg-event-db
   :modal/open
   (fn [db [_ _]]
-    (do
-      (log db)
-      (assoc db :modal/visible? true))))
+    (assoc db :modal/visible? true)))
+
+(rf/reg-sub
+  :form/fields
+  (fn [db _]
+    (get-in db [:form/fields] {})))
+
+(rf/reg-event-db
+  :form/change
+  (fn [db [_ field data]]
+    (update db :form/fields assoc field data)))
+
+(rf/reg-event-db
+  :form/clear
+  (fn [db [_ _]]
+    (assoc db :form/fields {})))
 
 (defn get-patients []
   (GET "/patients"
@@ -110,12 +122,10 @@
         [:td insurance_number]
         [:td
          [:div.buttons
-          [:button.button {:on-click #(delete-patient id)} [:span.icon [:i.mi.mi-delete]]]
+          [:button.button {:on-click #(delete-patient id)} [:span.icon [:i.mi.mi-delete]]] ;;TODO add confirmation before delete
           [:button.button {:on-click #(edit-patient id)} [:span.icon [:i.mi.mi-edit]]]]]])]]])
 
-;; TODO update patients atom after successful operation
 (defn add-patient! [fields errors]
-  (println @fields)
   (POST "/patient"
         {:format        :json
          :headers
@@ -124,6 +134,8 @@
          :params        @fields
          :handler       #(do
                            (rf/dispatch [:patients/add @fields])
+                           (rf/dispatch [:form/clear])
+                           (rf/dispatch [:modal/close])
                            (.log js/console (str "response:" %))
                            (reset! errors nil))
          :error-handler #(do
@@ -135,12 +147,12 @@
     [:div.notification.is-danger (string/join error)]))
 
 (defn patients-form []
-  (let [fields         (r/atom {})
+  (let [fields         (rf/subscribe [:form/fields])
         errors         (r/atom nil)
         change-handler (fn [field]
                          (fn [event]
                            (let [value (-> event .-target .-value)]
-                             (swap! fields assoc field value))))]
+                             (rf/dispatch [:form/change field value]))))]
     (fn []
       [:div
        [errors-component errors :server-error]
@@ -197,13 +209,9 @@
          :on-click #(add-patient! fields errors)
          :value    "Add"}]])))
 
-(defn display-modal [e]
-  (log e))
-
 (defn open-modal []
   (rf/dispatch [:modal/open]))
 
-;; TODO figure out how to use re-frame, in order to easier manage state of open/closed modal
 (defn patient-modal []
   (let [visible?    (rf/subscribe [:modal/visible?])
         close-modal (fn [] (rf/dispatch [:modal/close]))]
