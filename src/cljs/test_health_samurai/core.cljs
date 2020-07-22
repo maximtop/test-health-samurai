@@ -45,8 +45,10 @@
   :patients/update
   (fn [db [_ patient]]
     (log patient)
-    ;; (update db :patients/list conj patient)
-    ))
+    (update db :patients/list (fn [list] (map #(if (= (:id %) (:id patient))
+                                                 patient
+                                                 %)
+                                              list)))))
 
 (rf/reg-sub
   :patients/list
@@ -56,7 +58,7 @@
 (rf/reg-sub
   :modal/visible?
   (fn [db _]
-    (get-in db [:modal :visible?] true)))
+    (get-in db [:modal :visible?] false)))
 
 (rf/reg-event-db
   :modal/close
@@ -114,38 +116,6 @@
            :error-handler #(do
                              (log %))})) ;; TODO add toast notification
 
-(defn open-edit-modal [id]
-  (let [patients @(rf/subscribe [:patients/list])
-        patient  (first (filter #(= (:id %) id) patients))]
-    (rf/dispatch [:form/fill patient])
-    (rf/dispatch [:modal/open :edit])))
-
-;; TODO do not display if patients list is empty
-(defn patients-list [patients]
-  (log patients)
-  [:div
-   [:table.table.is_fullwidth
-    [:thead
-     [:tr
-      [:th "Name"]
-      [:th "Sex"]
-      [:th "Birthday"]
-      [:th "Address"]
-      [:th "Insurance number"]
-      [:th "Actions"]]]
-    [:tbody
-     (for [{:keys [id, full_name, sex, birthday, address, insurance_number]} @patients]
-       [:tr {:key id}
-        [:td full_name]
-        [:td sex]
-        [:td "birthday"]
-        [:td address]
-        [:td insurance_number]
-        [:td
-         [:div.buttons
-          [:button.button {:on-click #(delete-patient id)} [:span.icon [:i.mi.mi-delete]]] ;;TODO add confirmation before delete
-          [:button.button {:on-click #(open-edit-modal id)} [:span.icon [:i.mi.mi-edit]]]]]])]]])
-
 (defn add-patient! [fields errors]
   (POST "/patient"
         {:format        :json
@@ -178,6 +148,37 @@
           :error-handler #(do
                             (.log js/console (str %))
                             (reset! errors (get-in % [:response :errors])))}))
+
+(defn open-edit-modal [id]
+  (let [patients @(rf/subscribe [:patients/list])
+        patient  (first (filter #(= (:id %) id) patients))]
+    (rf/dispatch [:form/fill patient])
+    (rf/dispatch [:modal/open :edit])))
+
+;; TODO do not display if patients list is empty
+(defn patients-list [patients]
+  [:div
+   [:table.table.is_fullwidth
+    [:thead
+     [:tr
+      [:th "Name"]
+      [:th "Sex"]
+      [:th "Birthday"]
+      [:th "Address"]
+      [:th "Insurance number"]
+      [:th "Actions"]]]
+    [:tbody
+     (for [{:keys [id, full_name, sex, birthday, address, insurance_number]} @patients]
+       [:tr {:key id}
+        [:td full_name]
+        [:td sex]
+        [:td birthday]
+        [:td address]
+        [:td insurance_number]
+        [:td
+         [:div.buttons
+          [:button.button {:on-click #(delete-patient id)} [:span.icon [:i.mi.mi-delete]]] ;;TODO add confirmation before delete
+          [:button.button {:on-click #(open-edit-modal id)} [:span.icon [:i.mi.mi-edit]]]]]])]]])
 
 (defn errors-component [errors id]
   (when-let [error (id @errors)]

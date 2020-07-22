@@ -2,7 +2,6 @@
   (:require
    [test-health-samurai.layout :as layout]
    [test-health-samurai.db.core :as db]
-   [clojure.java.io :as io]
    [test-health-samurai.middleware :as middleware]
    [ring.util.response]
    [ring.util.http-response :as response]
@@ -11,11 +10,11 @@
 
 (defn home-page [request]
   (layout/render
-   request
-   "home.html"))
+    request
+    "home.html"))
 
 (defn patients-list [_]
-  (response/ok {:patients (vec (db/get-patients))}))
+  (response/ok {:patients (map (fn [patient] (update-in patient [:birthday] #(.toString %))) (vec (db/get-patients)))}))
 
 ;; TODO validate better
 (def patient-schema
@@ -61,7 +60,7 @@
 (defn update-patient! [{:keys [params path-params]}]
   (println params path-params)
   (try
-    (db/edit-patient! (assoc params :birthday (instant/read-instant-date (:birthday params))))
+    (db/edit-patient! (assoc params :birthday (instant/read-instant-date (:birthday params)) :id (Integer/parseInt (:id path-params))))
     (response/ok {:status :ok})
     (catch Exception e
       (println e)
@@ -70,8 +69,7 @@
 
 (defn home-routes []
   [""
-   {:middleware [
-                 middleware/wrap-csrf
+   {:middleware [middleware/wrap-csrf
                  middleware/wrap-formats]}
    ["/" {:get home-page}]
    ["/patients" {:get    patients-list
