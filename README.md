@@ -1,8 +1,6 @@
 # test-health-samurai
 
-generated using Luminus version "3.74"
-
-FIXME
+Test assignment for Health Samurai
 
 ## Prerequisites
 
@@ -14,8 +12,4 @@ You will need [Leiningen][1] 2.0 or above installed.
 
 To start a web server for the application, run:
 
-    lein run 
-
-## License
-
-Copyright © 2020 FIXME
+    lein run

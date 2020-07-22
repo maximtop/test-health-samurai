@@ -1,7 +1,7 @@
 (defproject test-health-samurai "0.1.0-SNAPSHOT"
 
-  :description "FIXME: write description"
-  :url "http://example.com/FIXME"
+  :description "Test assignment for Health Samurai"
+  :url "https://github.com/maximtop/test-health-samurai"
 
   :dependencies [[ch.qos.logback/logback-classic "1.2.3"]
                  [cheshire "5.10.0"]

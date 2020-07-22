@@ -1,10 +1,10 @@
 (ns test-health-samurai.core
-  (:require [reagent.core :as r]
-            [re-frame.core :as rf]
+  (:require [re-frame.core :as rf]
             [re-frame.db :as rfd]
             [reagent.dom :as rd]
             [ajax.core :refer [GET POST DELETE PATCH]]
-            [clojure.string :as string]))
+            [clojure.string :as string]
+            [test-health-samurai.validation :refer [validate-patient]]))
 
 ;; Helpers
 (defn classnames [& args]
@@ -44,7 +44,6 @@
 (rf/reg-event-db
   :patients/update
   (fn [db [_ patient]]
-    (log patient)
     (update db :patients/list (fn [list] (map #(if (= (:id %) (:id patient))
                                                  patient
                                                  %)
@@ -93,8 +92,17 @@
 (rf/reg-sub
   :modal/type
   (fn [db _]
-    (log db)
     (get-in db [:modal :type] :add-new)))
+
+(rf/reg-sub
+  :form/errors
+  (fn [db [_ _]]
+    (get-in db [:form/errors] nil)))
+
+(rf/reg-event-db
+  :form/update-errors
+  (fn [db [_ errors]]
+    (assoc db :form/errors errors)))
 
 (defn get-patients []
   (GET "/patients"
@@ -116,38 +124,45 @@
            :error-handler #(do
                              (log %))})) ;; TODO add toast notification
 
-(defn add-patient! [fields errors]
-  (POST "/patient"
-        {:format        :json
-         :headers
-         {"Accept"       "application/transit+json"
-          "x-csrf-token" (. js/window -csrfToken)}
-         :params        @fields
-         :handler       #(do
-                           (rf/dispatch [:patients/add @fields])
-                           (rf/dispatch [:form/clear])
-                           (rf/dispatch [:modal/close])
-                           (.log js/console (str "response:" %))
-                           (reset! errors nil))
-         :error-handler #(do
-                           (.log js/console (str %))
-                           (reset! errors (get-in % [:response :errors])))}))
+(defn add-patient! [fields]
+  (if-let [validation-errors (validate-patient @fields)]
+    (rf/dispatch [:form/update-errors validation-errors])
+    (POST "/patient"
+          {:format        :json
+           :headers
+           {"Accept"       "application/transit+json"
+            "x-csrf-token" (. js/window -csrfToken)}
+           :params        @fields
+           :handler       #(do
+                             (.log js/console (str "response:" %))
+                             (rf/dispatch [:patients/add @fields])
+                             (rf/dispatch [:form/clear])
+                             (rf/dispatch [:modal/close])
+                             (rf/dispatch [:form/update-errors nil]))
+           :error-handler #(do
+                             (.log js/console (str %))
+                             (rf/dispatch [:form/update-errors (get-in % [:response :errors])]))})))
 
-(defn edit-patient! [fields errors]
-  (PATCH (string/join "/" ["/patients" (:id @fields)])
-         {:format        :json
-          :headers       {"Accept"       "application/transit+json"
-                          "x-csrf-token" (. js/window -csrfToken)}
-          :params        @fields
-          :handler       #(do
-                            (rf/dispatch [:patients/update @fields])
-                            (rf/dispatch [:form/clear])
-                            (rf/dispatch [:modal/close])
-                            (.log js/console (str "response: " %))
-                            (reset! errors nil))
-          :error-handler #(do
-                            (.log js/console (str %))
-                            (reset! errors (get-in % [:response :errors])))}))
+;; TODO if nothing changed do not send request
+(defn edit-patient! [fields]
+  (if-let [validation-errors (validate-patient @fields)]
+    (do
+      (log validation-errors)
+      (rf/dispatch [:form/update-errors validation-errors]))
+    (PATCH (string/join "/" ["/patients" (:id @fields)])
+           {:format        :json
+            :headers       {"Accept"       "application/transit+json"
+                            "x-csrf-token" (. js/window -csrfToken)}
+            :params        @fields
+            :handler       #(do
+                              (rf/dispatch [:patients/update @fields])
+                              (rf/dispatch [:form/clear])
+                              (rf/dispatch [:modal/close])
+                              (.log js/console (str "response: " %))
+                              (rf/dispatch [:form/update-errors nil]))
+            :error-handler #(do
+                              (.log js/console (str %))
+                              (rf/dispatch [:form/update-errors (get-in % [:response :errors])]))})))
 
 (defn open-edit-modal [id]
   (let [patients @(rf/subscribe [:patients/list])
@@ -186,14 +201,15 @@
 
 (defn patients-form [submit-handler]
   (let [fields         (rf/subscribe [:form/fields])
-        errors         (r/atom nil)
+        errors         (rf/subscribe [:form/errors])
         change-handler (fn [field]
                          (fn [event]
                            (let [value (-> event .-target .-value)]
                              (rf/dispatch [:form/change field value]))))]
     (fn []
-      [:form {:on-submit (fn [e] (.preventDefault e)
-                           (submit-handler fields errors))}
+      [:form {:on-submit (fn [e]
+                           (.preventDefault e)
+                           (submit-handler fields))}
        [errors-component errors :server-error]
        [:div.field
         [:label.label {:for :full_name} "Full name"]
@@ -247,7 +263,10 @@
         [:input.button.is-primary
          {:type  :submit
           :value "Add"}]
-        [:button.button.is-danger {:on-click (fn [e] (.preventDefault e) (rf/dispatch [:modal/close]))} "Cancel"]]])))
+        [:button.button.is-danger {:on-click (fn [e]
+                                               (.preventDefault e)
+                                               (rf/dispatch [:modal/close])
+                                               (rf/dispatch [:form/update-errors] nil))} "Cancel"]]])))
 
 (defn open-modal []
   (rf/dispatch [:modal/open]))
@@ -256,9 +275,9 @@
   (let [visible?       (rf/subscribe [:modal/visible?])
         close-handler  (fn [] (rf/dispatch [:modal/close]))
         type           (rf/subscribe [:modal/type])
-        submit-handler (fn [fields errors] (if (= @type :edit)
-                                             (edit-patient! fields errors)
-                                             (add-patient! fields errors)))]
+        submit-handler (fn [fields] (if (= @type :edit)
+                                      (edit-patient! fields)
+                                      (add-patient! fields)))]
     (fn []
       (let [title (if (= @type :edit) "Edit patient" "Add patient")]
         [:div.modal {:class (classnames (when @visible? "is-active"))}
