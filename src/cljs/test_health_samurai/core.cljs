@@ -258,22 +258,18 @@
          {:type      :text
           :name      :insurance_number
           :on-change (change-handler :insurance_number)
-          :value     (:insurance_number @fields)}]]
-       [:div.buttons
-        [:input.button.is-primary
-         {:type  :submit
-          :value "Add"}]
-        [:button.button.is-danger {:on-click (fn [e]
-                                               (.preventDefault e)
-                                               (rf/dispatch [:modal/close])
-                                               (rf/dispatch [:form/update-errors] nil))} "Cancel"]]])))
+          :value     (:insurance_number @fields)}]]])))
 
 (defn open-modal []
   (rf/dispatch [:modal/open]))
 
 (defn patient-modal []
   (let [visible?       (rf/subscribe [:modal/visible?])
-        close-handler  (fn [] (rf/dispatch [:modal/close]))
+        close-handler  (fn [e]
+                         (.preventDefault e)
+                         (rf/dispatch [:modal/close])
+                         (rf/dispatch [:form/update-errors nil])
+                         (rf/dispatch [:form/clear]))
         type           (rf/subscribe [:modal/type])
         submit-handler (fn [fields] (if (= @type :edit)
                                       (edit-patient! fields)
@@ -286,7 +282,15 @@
           [:header.modal-card-head
            [:p.modal-card-title title]]
           [:section.modal-card-body
-           [patients-form submit-handler]]]
+           [patients-form submit-handler]]
+          [:footer.modal-card-foot [:div.buttons
+                                    [:button.button.is-primary
+                                     {:on-click (fn [e]
+                                                  (.preventDefault e)
+                                                  (submit-handler (rf/subscribe [:form/fields])))}
+                                     (if (= @type :edit) "Submit" "Add")]
+                                    [:button.button.is-danger {:on-click close-handler}
+                                     "Cancel"]]]]
          [:button.modal-close.is-large {:aria-label :close :on-click close-handler}]]))))
 
 (defn home []
